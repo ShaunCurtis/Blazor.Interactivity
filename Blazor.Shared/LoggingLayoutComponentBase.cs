@@ -1,11 +1,8 @@
-﻿using Blazr.UI.Common;
-using Microsoft.AspNetCore.Components;
-
-namespace Blazor.Shared;
+﻿namespace Blazor.Shared;
 
 public class LoggingLayoutComponentBase : LayoutComponentBase
 {
-   [Inject] private IRenderModeProvider RenderModeProvider { get; set; } = default!;
+    [Inject] private IRenderModeProvider RenderModeProvider { get; set; } = default!;
 
     private bool _firstRender = true;
 
