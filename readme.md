@@ -6,17 +6,13 @@ Net 8 introduced the concept of *Interactivity* and provided ways to set it.  It
 
 ## Demo Solution
 
-If you want to walk along with this dicsussion create a Blazor Solution using the *Blazor Web App* template.  Set *Interactive Render Mode* to WebAssembky and *Interactivity Location* to Global.
-
-The render mode logging code is described in the Appendix.
-
-> TODO - Add this to the appendix
+If you want to walk along with this discussion create a Blazor Solution using the *Blazor Web App* template.  Set *Interactive Render Mode* to WebAssembly and *Interactivity Location* to Global.
 
 ##  Blazor Server
 
 The original mode of operation.
 
-In the Server project modify `App.razor` by changing the rendermode on `HeadOutlet` and `Routes` to `@rendermode="InteractiveServer"`.
+In the Server project modify `App.razor` by changing the `rendermode` on `HeadOutlet` and `Routes` to `@rendermode="InteractiveServer"`.
 
 ```csharp
 //...
@@ -27,6 +23,23 @@ In the Server project modify `App.razor` by changing the rendermode on `HeadOutl
     @* <Routes /> *@
 //...
 ```
+
+Update the Server project program to include Interactive server rendering.
+
+```csharp
+builder.Services.AddRazorComponents()
+    .AddInteractiveWebAssemblyComponents()
+    .AddInteractiveServerComponents();
+
+//...
+
+app.MapRazorComponents<App>()
+    .AddInteractiveWebAssemblyRenderMode()
+    .AddInteractiveServerRenderMode()
+    .AddAdditionalAssemblies(typeof(Blazor.Interactivity.Client._Imports).Assembly);
+```
+
+Run the solution.
 
 What you will see is this:
 
@@ -50,19 +63,19 @@ Home - Blazor Server Rendered - ServiceId: 2b8f
 Counter - Blazor Server Rendered - ServiceId: 2b8f
 ```
 
-You get the intital pre-render of the components in the HttpRequest context.  The page downloads to the client.  The Blazor client JS code establishes an SPA session with the Blazor Hub [running on the server].  This rebuilds the interactive parts of the page and passes them back to the client to apply to the DOM.
+Everything is initially pre-rendered in the *HttpRequest Context*.  Once the static page downloads to the client, the Blazor client JS code establishes a *SignalR* session with the Blazor Hub running on the server.  This sets up a SPA session, establishes the interactivity root components, builds the render trees and  passes the DOM changes back to the client to apply to the DOM.
 
-For the purposes of this discussion, the SPA session has:
-1. One or more RenderTrees maintained by the Renderer
-1. A scoped service container which exists for the duration of the SPA session.
+### Services
 
-It's important to understand that services are injected into components from their render context.  Scoped and Transient Services required by a component rendered by a RenderTree in the HttpRequest context come from the HttpRequest's Scoped container.  This container only exists for the duration of the HttpRequest context.  Once the server returns the page to the client that context is destroyed and with it all it's services.  Scoped and Transient services that implement `IDisposable/IAsyncDisposable` will be disposed.
+It's important to understand that services are injected into components from their render context.  Scoped and Transient Services injected into components rendered by a RenderTree in the HttpRequest Context, come from the HttpRequest's Scoped container.  This container only exists for the duration of the HttpRequest context.
 
 You can see this in the console log. The `ServiceId` for the `RenderModeProvider` instance is different between the HttpRequest context and the Blazor Server Hub Context.  
- 
-In the `App` setup above the interactive parts of the page are the `HeadOutlet` and `Routes` components.  `HeadOutlet` is a short stub which we'll cover later.  The SPA [running in the Blazor Server Hub session] renderer creates a RenderTree with the `Routes` component as it's root.  The `Router` and `MainLayout` are in this tree.  Importantly, `Router` runs within the SPA and listens for navigation events raised by the `NavigationManager` scoped service provided by the SPA context's service container. Routing is just the changing out of the rendered component in the layout.  There's no round trips to the server.
 
-You will see the pre-render of the intial page, and pre-rendering when you click `<F5>` and reset the SPA session.
+## Interactivity
+
+In `App` the interactive components are `HeadOutlet` and `Routes`.  `HeadOutlet` is a short stub which we'll cover later.  The Blazor Server Hub session [SPA] renderer creates a RenderTree with `Routes` as it's root.  The `Router` and `MainLayout` are in this tree.  Importantly, `Router` runs within the SPA and listens for navigation events raised by the `NavigationManager` scoped service provided by the SPA context's service container. Routing is the changing out of the rendered component in the layout: there are no round trips to the server.
+
+You can see the pre-render of the initial page when you click `<F5>` and reset the SPA session.
 
 ```text
 Routes - Pre-Rendered - ServiceId: 54da
@@ -73,7 +86,7 @@ MainLayout - Blazor Server Rendered - ServiceId: f299
 Home - Blazor Server Rendered - ServiceId: f299
 Weather - Blazor Server Rendered - ServiceId: f299
 
-==> Hit <F5>
+==> Hit <F5> on Weather
 
 Routes - Pre-Rendered - ServiceId: e20c
 MainLayout - Pre-Rendered - ServiceId: e20c
@@ -106,7 +119,7 @@ Weather - Blazor Server Rendered - ServiceId: e74b
 
 ### Blazor Server Summary
 
-What we did here is set the render mode globally for the application.  We did this by setting  Interactivity root to the highest component in the application.  This overrides settings in any lower level components.  
+We set the render mode globally for the application by setting the interactivity root to the highest component in the application.  This overrides settings in any lower level components.  
 
 However, note that if you set any component in the RenderTree to  `InteractiveWebAssembly` you will generate an exception at runtime when you navigate to the page:
 
@@ -128,47 +141,7 @@ Change `App` to `InteractiveWebAssembly`.
 //...
 ```
 
-When you run this:
-
-```csharp
-Routes - Pre-Rendered - ServiceId: 67b0
-MainLayout - Pre-Rendered - ServiceId: 67b0
-Home - Pre-Rendered - ServiceId: 67b0
-```
-
-And then an exception:
-
-```text
-Root component type 'Blazor.Auto.Components.Routes' could not be found in the assembly 'Blazor.Auto'.
-```
-
-The problem is that the client code [in the Client Project] can't see `Routes`.  It's in the `Server` project.
-
-To fix this we need to move `Routes` and the layout files to the client project. Move:
-1. *Routes.razor* to the Client Project root folder.
-1. *Layout* folder to the Client Project root folder.
-
-Now when you run the application you will see the page intitally rendered, and then a *Not Found* message in the browser. 
-
-The logs will look like this:
-
-```text
-Routes - Pre-Rendered - ServiceId: eb1d
-MainLayout - Pre-Rendered - ServiceId: eb1d
-Home - Pre-Rendered - ServiceId: eb1d
-```
-
-And in the browser console:
-
-```text
-Routes - Blazor WebAssembly Rendered - ServiceId: 103c
-```
-
-Everything renders correctly in pre-render mode, but when the SPA session starts in the browser you can see `Routes` being rendered, but `Router` can't find the `/` route.  That's because *Home.razor* is in the Server project.
-
-Move `Home` and `Weather` to the *Pages* folder in Client project.  Rebuild the solution.
-
-Everything should not work
+When you run this you see the pre-render on the server, and then the initial re-render on the client.  All subsequent navigation events are restricted to the SPA session running on the browser. 
 
 Server Console:
 
@@ -206,12 +179,11 @@ As with Server, you can turn off pre-rendering with:
 //...
 ```
 
-However, I would suggest you detect pre-rendering in `Router` and provide some sort of loading screen  
-### Blazor WebAssembly Summary
+However, I would suggest you detect pre-rendering in `Router` and provide some sort of loading screen.
 
-This is the NetCore hosted version of Blazor WebAssembly.  We've had to move all content components into the *Client* project.  We can't reference the *Server* project from the *Client* project for two reasons: the *Server* project already references the *Client* project, and even without that the *Server* project comntains some WebAssembly incompatible assemblies that will cause compilation errors.
+Some points:
 
-As with the server project we've set the solution to global `WebAssembly` mode and set our interactivity root to `Routes`.
+1. All the components are in the Client project.  They can't reside in the Server project for two reasons: the *Server* project already references the *Client* project, and even without that the *Server* project contains some WebAssembly incompatible assemblies that will cause compilation errors.
 
 
 ## Per Page/Component Interactivity
@@ -226,19 +198,41 @@ Set `App` and rebuild the solution.
 //...
 ```
 
-Check the render mode on `Counter`.  If you set up the solution as I suggested you should have [If not the set it as shown]:
-
-```csharp
-@page "/counter"
-@inherits LoggingComponentBase
-@rendermode InteractiveAuto
-
-<PageTitle>Counter</PageTitle>
-
-<h1>Counter</h1>
-```
+And make sure there are no `@rendermode` settings on any of the pages. 
 
 Run the Solution.
+
+Server Console:
+
+```csharp
+Routes - Pre-Rendered - ServiceId: c323
+MainLayout - Pre-Rendered - ServiceId: c323
+Home - Pre-Rendered - ServiceId: c323
+
+==> Navigate to Weather 
+
+Routes - Pre-Rendered - ServiceId: cec0
+MainLayout - Pre-Rendered - ServiceId: cec0
+Weather - Pre-Rendered - ServiceId: cec0
+
+==> Navigate to Counter 
+
+Routes - Pre-Rendered - ServiceId: 76aa
+MainLayout - Pre-Rendered - ServiceId: 76aa
+Counter - Pre-Rendered - ServiceId: 76aa
+```
+
+Everything is now being statically rendered.  There's no interactivity.
+
+Update Counter:
+
+ ```csharp
+ @page "/counter"
+@inherits LoggingComponentBase
+@rendermode InteractiveAuto
+```
+
+What you will now see is:
 
 Server Console:
 
@@ -266,12 +260,13 @@ Client Console:
 Counter - Blazor WebAssembly Rendered - ServiceId: 6122
 ```
 
-We can now see:
+What we see is:
 
- - Home and Weather are being statically rendered.  No Interactivity. 
- - Counter is initially statically rendered, but switches Web Assembly once the SPA loads.
+ 1. Home and Weather are being statically rendered.  No Interactivity.
+ 
+ 2. Counter is initially statically rendered, but switches to Web Assembly once the SPA loads.
 
- Note that only the `Counter` component is being rendered in Web Assembly.  `Routes` and `MainLayout` are only statically rendered.  The interactivity root is `Counter`.
+ 3. Only the `Counter` component is being rendered in Web Assembly.  `Routes` and `MainLayout` are statically rendered.  The interactivity root is `Counter`.
 
  If you hit `<F5>` in the counter page and try and navigate to *Home* quickly, nothing happens.  The WebAssembly SPA is loading and the UI is unresponsive.
 
@@ -287,6 +282,8 @@ We can now see:
 <PageTitle>Home</PageTitle>
 ```
 
+Now we see:
+
 ```text
 Routes - Pre-Rendered - ServiceId: e9d5
 MainLayout - Pre-Rendered - ServiceId: e9d5
@@ -301,18 +298,18 @@ Counter - Pre-Rendered - ServiceId: 840a
 Counter - Blazor Server Rendered - ServiceId: aeb7
 ```
 
-Home is now statically rendered and then rendered in Blazor Server.  When you navigate to *Counter* it's now rendered in Blazor Server mode, not WebAssembly.
+Home is initially statically rendered and then rendered in Blazor Server.  When you navigate to *Counter* it's now rendered in Blazor Server mode, not WebAssembly.
 
 In all cases `Routes` and `MainLayout` are statically rendered.
 
 This has a significant impact on services.  The scoped service set used by `Router` is that from the HttpRequest context.  Those used by interactive pages are SPA context services.
 
-Consider Authentication/Authorization.  The Authentication services used by `Router` and `NavMenu` are a different set to those used interactiv pages.  Futhermore, any cascaded parameters set up in `Routes` or `MainLayout` don't exist in interactive pages.  It's the RenderTree and Renderer that keep track of cascaded parameters.  `Routes` and `MainLayout` don't exist in a renderTree whose root is the page.  `CascadingAuthenticationState` is a very good example.
+Consider Authentication/Authorization.  The Authentication services used by `Router` and `NavMenu` are a different set to those used interactive pages.  Furthermore, any cascaded parameters set up in `Routes` or `MainLayout` don't exist in interactive pages.  It's the RenderTree and Renderer that keep track of cascaded parameters.  `Routes` and `MainLayout` don't exist in a renderTree whose root is the page.  `CascadingAuthenticationState` is a very good example.
 
 ## Conclusions
 
-Knowing what I've discovered since Net8 arrived, I would not embark on a mixed mode application unless I was doing a phased migration of an existing server side rendered application.  Even then I would be using a very modular approach, moving whole logic sections at a time.
+Knowing what I've discovered since Net8 arrived, I would not embark on a mixed mode application unless I was doing a phased migration of an existing server side rendered application.  Even then I would be using a very modular approach with a few steps as possible, migrating whole logical sections at a time.
 
-I would also not embark on a mixed Web Assembly/Server project.
+I would also not embark on a mixed Web Assembly/Server project, without a lot of money, a large built in contingency, and a very compelling reason to do.
 
-In either case, you really do need to know what you're doing taking amixed mode journey.  You need to seriously consider complexity vs gain.
+In either case, you really do need to know what you're doing taking a mixed mode journey.  You need to seriously consider complexity vs gain.

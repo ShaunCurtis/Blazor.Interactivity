@@ -4,7 +4,7 @@ An important part of understanding Interactivity is:
  - knowing the actual render mode of a component.
  - knowing the Scoped Service Container state.
 
-First a enum:
+First an `Enum`:
 
 ```csharp
 public enum ComponentRenderMode
@@ -15,7 +15,7 @@ public enum ComponentRenderMode
 }
 ```
 
-We define an interface `IRenderModeProvider`.
+An interface `IRenderModeProvider` to define the functionality.
 ```csharp
 public interface IRenderModeProvider
 {

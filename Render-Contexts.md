@@ -86,7 +86,7 @@ Important Points:
  Cannot create a component of type 'Blazor.Auto.Client.Pages.Counter' because its render mode 'Microsoft.AspNetCore.Components.Web.InteractiveWebAssemblyRenderMode' is not supported by interactive server-side rendering.
  ```
  
- 1. This context shares it's singleton services with the HttpRequest context.
+ 2. This context shares it's singleton services with the HttpRequest context.
 
  ## The Blazor WebAssembly Hub Context
 
@@ -96,14 +96,9 @@ Important Points:
  
  Important Points:
 
- 1. It's *Singleton* and *Scoped* services are the essentially the same: *Singleton* services exists for the lifespan of the SPA, the same as *Scoped* services.
+ 1. The *Singleton* and *Scoped* services are the essentially the same: *Singleton* services exists for the lifespan of the SPA, the same as *Scoped* services.
 
  1. There's no access to the server services.  You can't access databases directly.
 
- 1. All the code is effectively an *Open Book*.  Anyone can take the code modules downloaded to the broswer and disassemble them.
-
-
-
-
-## End
+ 1. All the code is effectively an *Open Book*.  Anyone can take the code modules downloaded to the browser and disassemble them.
 
