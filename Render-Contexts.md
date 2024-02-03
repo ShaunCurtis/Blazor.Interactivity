@@ -1,23 +1,29 @@
 # Render Contexts
 
-There are three contexts in which Blazor Components are rendered.  Each contains:
+There are three contexts in which Blazor Components are rendered.  All the contexts provide:
 
  - A RenderTree for each root component managed by the Renderer.
- - A Scoped Service container to provide services.
+ - A Scoped Service container to provide services that the Renderer injects into components.
 
 ## The HttpRequest Context
 
-This is the classic old school Server Side Render context, MVC, Razor, Asp,....  The context is created in the HttpRequest pipeline to handle the page request.  The context only exists for the duration of the request.  Once the content is returned to the caller in the HttpRequest pipeline, the context is destroyed and services disposed.
+This is the classic old school Server Side Render context, MVC, Razor, Asp,....  The context is created in the HttpRequest pipeline to handle the page request.  
 
-Note that the top level services container is owned by the running web application.  All *Singleton* services are provided this container and exist for the lifetime of the web application.
+In Blazor this is the Pre-Render mode.  The page is statically rendered and return to the caller.
 
-In component `SetParametersAsync` is called once: so the the normal lifecycle methods execute once.  There are no UI events, so there's no `OnAfterRender{Async}`.
+Some key points to understand:
 
-In Blazor this is the Pre-Render.  The page is statically rendered and return to the caller.
+1. It only exists for the duration of the request.  Once the handler completes the context is destroyed and services disposed.
 
-The configuration of the HttpRequest Context is dictated by `Program` in the Web Application project.  The service configuration is shared by the HttpRequest Context and the Blazor Server Hub.
+2. The top level services container is owned by the running web application.  The context's scoped container in created in that container.  All *Singleton* services are provided the application container and exist for the lifetime of the web application.
 
-In the services configuration `AddRazorComponents()` add the necessary services for rendering Razor pages in the HttpRequest Context.
+3. `SetParametersAsync` is called once on a component: the the normal lifecycle methods execute once.  
+
+4. There are no UI events, so no `OnAfterRender{Async}`.
+
+5. The configuration of the HttpRequest Context is dictated by `Program` in the Web Application project.  The service configuration is shared by the HttpRequest Context and the Blazor Server Hub.
+
+6. In the services configuration `AddRazorComponents()` add the necessary services for rendering Razor pages in the HttpRequest Context.
 
 ```csharp
 builder.Services.AddRazorComponents()
@@ -25,7 +31,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveWebAssemblyComponents();
 ```
 
-In app, `MapRazorComponents<App>()` maps all requests to the `App` component and `AddAdditionalAssemblies(typeof(Counter).Assembly)` tells Razor to also search the provided assemblies for `RouteAttribute` components.
+7. In the HttpRequest pipeline configuration, `MapRazorComponents<App>()` maps all requests to the `App` component
 
 ```csharp
 app.MapRazorComponents<App>()
@@ -34,7 +40,12 @@ app.MapRazorComponents<App>()
     .AddAdditionalAssemblies(typeof(Counter).Assembly);
 ```
 
-This is `App`.  It's a standard web page with one or more components.  Note that the two root components `HeadOutlet` and `Routes` are also statically rendered.
+8. `AddAdditionalAssemblies(typeof(Counter).Assembly)` tells Razor to also search the provided assemblies for `RouteAttribute` components.
+
+
+This is `App`.  It's a standard web page with one or more components.  
+
+The render context builds two render trees: a stub one for `HeadOutlet` and the main one for `Routes`.  Both are statically rendered.
 
 ```csharp
 <!DOCTYPE html>
@@ -61,17 +72,38 @@ This is `App`.  It's a standard web page with one or more components.  Note that
 
 ## The Blazor Server Hub Context
 
-When the web page is returned by by an HttpRequest, the `blazor.web.js` code establishes a *SingalR* session with the server.  This creates and maintains the Server Hub context while the *SignalR* session remains active.  The context creates RenderTrees for any base interactive components.  The root of the render tree is the highest level component declaring a `@rendermode`.  Any lower components declaring a render mode are either ignored or throw exceptions.  Having a `@rendermode="InteractiveWebAssembly"` below a `@rendermode="InteractiveServer"` will cause an exception.
+When the web page is returned by an HttpRequest, the browser loads the page and `blazor.web.js` is run.  It establishes a *SignalR* session with the Blazor Hub running on  the server. The *SignalR* session remains active thoughout the life of the SPA session.
+
+At this point, the Blazor Hub session loads `App`, traverses the component render tree and establishes the interactivity roots.  In the App above, these are `HeadOutlet` and `Routes`.  However, if you are using *Per Page/Component* interactivity this may be a single tree with `Home` as it's root.
+
+Once this is sorted, the Server Hub Context builds out the Render Tree, injects the services and runs a render on the tree.  This builds the Renderer's version of the DOM.  It runs a Diff against the statically rendered version and transmits the changes to the browser.  The browser applies the changes and updates.
+
+Important Points:
+
+1. Interactivity is established at the highest node in the page's component tree.  That interactivity is applied to all sub components.  You can't change to something else.  The render directive will either be ignored, or if you try and switch between Server and Web Assembly, throw an exception.
 
 ```text
  Cannot create a component of type 'Blazor.Auto.Client.Pages.Counter' because its render mode 'Microsoft.AspNetCore.Components.Web.InteractiveWebAssemblyRenderMode' is not supported by interactive server-side rendering.
  ```
  
- This context shares it's singleton services with the HttpRequest context.
+ 1. This context shares it's singleton services with the HttpRequest context.
 
  ## The Blazor WebAssembly Hub Context
 
- This is the same as the Server Hub Context, but runs in the browser.  It's totally separate from the server.  It's *Singleton* and *Scoped* services are the essentially the same: *Singleton* services exists for the lifespan of the SPA, the same as *Scoped* services.
+ The way I conceptualize this is a hard wired Server Hub Session without *SignalR*.
+
+ The Hub Session runs in the Web Assembly container in the browser.  It operates in the same way, but only has access to services from within the container.  It's totally separate from the server.  
+ 
+ Important Points:
+
+ 1. It's *Singleton* and *Scoped* services are the essentially the same: *Singleton* services exists for the lifespan of the SPA, the same as *Scoped* services.
+
+ 1. There's no access to the server services.  You can't access databases directly.
+
+ 1. All the code is effectively an *Open Book*.  Anyone can take the code modules downloaded to the broswer and disassemble them.
 
 
+
+
+## End
 

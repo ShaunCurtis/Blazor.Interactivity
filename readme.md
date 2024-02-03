@@ -6,9 +6,9 @@ Net 8 introduced the concept of *Interactivity* and provided ways to set it.  It
 
 ## Demo Solution
 
-If you want to walk along with this dicsussion create a Blazor Solution using the *Blazor Web App* template.  Set *Interactive Render Mode* to Auto and *Interactivity Location* to Per Page/Component.
+If you want to walk along with this dicsussion create a Blazor Solution using the *Blazor Web App* template.  Set *Interactive Render Mode* to WebAssembky and *Interactivity Location* to Global.
 
-The coding the logging and adding it to the components is described in the Appendix.
+The render mode logging code is described in the Appendix.
 
 > TODO - Add this to the appendix
 
@@ -16,7 +16,7 @@ The coding the logging and adding it to the components is described in the Appen
 
 The original mode of operation.
 
-In the Server project modify `App.razor` by adding `@rendermode="InteractiveServer"` to the `HeadOutlet` and `Routes` components.
+In the Server project modify `App.razor` by changing the rendermode on `HeadOutlet` and `Routes` to `@rendermode="InteractiveServer"`.
 
 ```csharp
 //...
